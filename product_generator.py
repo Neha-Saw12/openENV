@@ -251,7 +251,7 @@ def _get_template(category: str) -> Dict[str, Any]:
     return DEFAULT_TEMPLATE
 
 
-def _make_seller(brand: str, seller_type: str) -> str:
+def _make_seller(brand: str, seller_type: str, rng: random.Random) -> str:
     """Generate a seller name based on the brand and seller type."""
     if seller_type == "official":
         return f"{brand} Official"
@@ -262,7 +262,7 @@ def _make_seller(brand: str, seller_type: str) -> str:
             "Unknown Marketplace", "Quick Deals", "Flash Sales",
             "Random Seller", "Budget Bazaar",
         ]
-        return random.choice(unknown_sellers)
+        return rng.choice(unknown_sellers)
 
 
 def _deterministic_seed(query: str, salt: str = "") -> int:
@@ -297,8 +297,15 @@ def generate_products(
     price_min, price_max = template["price_range"]
     price_span = price_max - price_min
 
-    # Use up to `count` archetypes
-    archetypes = ARCHETYPES[:count]
+    # Reuse the base archetypes with deterministic variants when a task
+    # requests more products than the archetype library size.
+    archetypes: List[Dict[str, Any]] = []
+    for i in range(count):
+        base = dict(ARCHETYPES[i % len(ARCHETYPES)])
+        variant_index = i // len(ARCHETYPES)
+        if variant_index:
+            base["variant_index"] = variant_index
+        archetypes.append(base)
     products: List[Dict[str, Any]] = []
 
     # Clean up the query for product naming
@@ -312,13 +319,16 @@ def generate_products(
         # Calculate price
         base_price = price_min + (price_span * arch["price_pct"])
         price_jitter = rng.uniform(-0.05, 0.05) * price_span
-        price = round(max(price_min, base_price + price_jitter), 2)
+        variant_index = arch.get("variant_index", 0)
+        variant_multiplier = 1.0 + (0.04 * variant_index)
+        price = round(max(price_min, (base_price + price_jitter) * variant_multiplier), 2)
 
         # Rating
-        rating = round(rng.uniform(*arch["rating"]), 1)
+        rating = round(max(1.0, min(5.0, rng.uniform(*arch["rating"]) - (0.1 * variant_index))), 1)
 
         # Reviews
-        reviews = rng.randint(*arch["reviews"])
+        review_floor, review_ceiling = arch["reviews"]
+        reviews = rng.randint(review_floor, max(review_floor, int(review_ceiling * (0.9 ** variant_index))))
 
         # Features
         n_features = rng.randint(*arch["feature_count"])
@@ -326,12 +336,14 @@ def generate_products(
         features = features_pool[:n_features]
 
         # Seller
-        seller = _make_seller(brand, arch["seller_type"])
+        seller = _make_seller(brand, arch["seller_type"], rng)
 
         # Build product name
         name = f"{arch['name_prefix']} {category_name}"
         if arch["key"] == "discounted":
             name = f"{category_name} (Was ${round(price * 1.8, 2)}, Now Sale!)"
+        elif variant_index:
+            name = f"{name} {variant_index + 1}"
 
         product = {
             "id": f"p{i + 1}",

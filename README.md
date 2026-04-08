@@ -1,3 +1,18 @@
+---
+title: Shopping Agent OpenEnv
+emoji: 🛍️
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+tags:
+  - openenv
+  - reinforcement-learning
+  - fastapi
+license: bsd-3-clause
+---
+
 # 🧠 Personality-Driven Shopping Agent — OpenEnv Environment
 
 A **real-world shopping simulation** where an AI agent must learn a specific user's shopping personality from persistent memory and make purchase decisions aligned with their style — not just pick the "globally best" product.
@@ -172,6 +187,32 @@ docker run -p 7860:7860 shopping-agent-env:latest
 
 # Test health
 curl http://localhost:7860/health
+```
+
+Verified locally:
+- `docker build -t shopping-agent-env:local .`
+- `docker run -p 7860:7860 shopping-agent-env:local`
+- `GET /health` returns `{"status":"healthy"}`
+
+### Hugging Face Space Deployment
+
+This repository is ready to run as a Docker-based Hugging Face Space and is tagged for OpenEnv in the README frontmatter above.
+
+```bash
+# Create a Docker Space, then push this repo to it
+git remote add hf https://huggingface.co/spaces/<username>/shopping-agent-openenv
+git push hf main
+```
+
+Space settings:
+- SDK: `Docker`
+- App port: `7860`
+- Tag: `openenv`
+
+After deployment, verify:
+
+```bash
+curl https://<username>-shopping-agent-openenv.hf.space/health
 ```
 
 ### API Endpoints
